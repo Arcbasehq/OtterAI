@@ -1,97 +1,60 @@
 # Otter AI
 
-Otter AI is a private-feeling AI chat web app built with React, TypeScript, Vite, and Vercel serverless functions. It uses OpenRouter on the server side so API keys are never exposed to the browser.
+Otter AI is a clean, privacy-minded AI chat website by Arcbase. It is designed for quick conversations, saved local chat history, and a calm interface that keeps the focus on the conversation.
 
-## Features
+The site uses OpenRouter through a server-side API route, so the model provider key is never exposed in the browser. The default model is Llama 3.3 70B Instruct.
 
-- OpenRouter chat completions through `/api/chat`
+## What It Does
+
+- Private-feeling AI chat with a simple, focused interface
+- Saved conversations on the user's device
+- A Chat History setting that clears saved chats and keeps future chats session-only
+- Light and dark appearance modes
+- Per-chat delete controls and a clear-all chat action
+- Code block rendering with a working copy button
+- Basic markdown rendering for AI responses
+- Optional language/timezone context for better date, time, and locale-aware answers
+- Datadog RUM support for production monitoring
+
+## Privacy
+
+Otter AI keeps chat history in the browser with `localStorage` when Chat History is enabled. Turning Chat History off clears saved chats, draft text, and the selected chat reference from local storage.
+
+Approximate Location does not send precise location, city, or address. When enabled, it sends browser language and timezone only. The model is instructed not to infer a location from that context.
+
+OpenRouter requests are handled through the server-side `/api/chat` route. The OpenRouter API key is stored as a server environment variable and is not shipped to the client.
+
+## AI Disclaimer
+
+Otter AI can make mistakes. Consider checking important information.
+
+## Production Services
+
+- AI routing: OpenRouter
 - Default model: `meta-llama/llama-3.3-70b-instruct`
-- Local chat history with a setting to disable and clear saved chats
-- Theme, sidebar, draft, active chat, and settings saved to `localStorage`
-- Optional language/timezone context for locale-aware answers
-- Per-chat delete and clear-all controls
-- Optional Datadog RUM browser monitoring
+- Hosting target: Vercel
+- Monitoring: Datadog RUM
 
-## Local Development
+## Required Runtime Configuration
 
-Install dependencies:
-
-```bash
-npm install
-```
-
-Create `.env.local`:
+Production requires an OpenRouter API key:
 
 ```env
-OPENROUTER_API_KEY=sk-or-v1-your-key
-OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct
-
-VITE_DATADOG_APPLICATION_ID=your-datadog-rum-application-id
-VITE_DATADOG_CLIENT_TOKEN=your-datadog-client-token
-VITE_DATADOG_SITE=datadoghq.com
-VITE_DATADOG_SERVICE=otterai
-VITE_DATADOG_ENV=development
-VITE_DATADOG_SESSION_SAMPLE_RATE=100
-VITE_DATADOG_SESSION_REPLAY_SAMPLE_RATE=0
+OPENROUTER_API_KEY=...
 ```
 
-Start the dev server:
-
-```bash
-npm run dev
-```
-
-The Vite dev server includes local middleware for `/api/chat`, so local development behaves like the Vercel deployment.
-
-## Vercel Deployment
-
-Set these environment variables in Vercel:
+Optional production settings:
 
 ```env
-OPENROUTER_API_KEY=sk-or-v1-your-key
 OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct
-
-VITE_DATADOG_APPLICATION_ID=your-datadog-rum-application-id
-VITE_DATADOG_CLIENT_TOKEN=your-datadog-client-token
-VITE_DATADOG_SITE=datadoghq.com
+VITE_DATADOG_APPLICATION_ID=...
+VITE_DATADOG_CLIENT_TOKEN=...
+VITE_DATADOG_SITE=us5.datadoghq.com
 VITE_DATADOG_SERVICE=otterai
 VITE_DATADOG_ENV=production
-VITE_DATADOG_VERSION=1.0.0
-VITE_DATADOG_SESSION_SAMPLE_RATE=100
-VITE_DATADOG_SESSION_REPLAY_SAMPLE_RATE=0
-VITE_DATADOG_START_SESSION_REPLAY=false
 ```
 
-`OPENROUTER_MODEL` is optional. If omitted, the server defaults to Llama 3.3 70B Instruct.
-Datadog is optional. RUM initializes only when `VITE_DATADOG_APPLICATION_ID` and `VITE_DATADOG_CLIENT_TOKEN` are set.
-
-Build command:
-
-```bash
-npm run build
-```
-
-Output directory:
-
-```text
-dist
-```
-
-## Scripts
-
-```bash
-npm run dev
-npm run build
-npm run lint
-npm run preview
-```
-
-## Security Notes
-
-- Never commit `.env.local` or real OpenRouter keys.
-- Rotate any key that has been pasted into chat, screenshots, logs, or issue trackers.
-- Datadog browser client tokens are intended for client-side use, but keep admin/API keys out of `VITE_` variables.
-- Browser `localStorage` is used for chats and settings. Users can disable Chat History in Settings to clear saved chats and keep future chats session-only.
+Datadog initializes only when both `VITE_DATADOG_APPLICATION_ID` and `VITE_DATADOG_CLIENT_TOKEN` are present.
 
 ## License
 

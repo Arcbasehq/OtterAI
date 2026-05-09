@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
-import { PanelLeft, Shield, X, NotebookPen, ArrowUp, Settings, MessageSquarePlus, ChevronDown, ShieldCheck, PenLine, Flame } from 'lucide-react';
+import { PanelLeft, Shield, X, NotebookPen, ArrowUp, Settings, MessageSquarePlus, ChevronDown, ShieldCheck, PenLine, Flame, Zap, Gauge } from 'lucide-react';
 
 type Message = {
   id: string;
@@ -28,6 +28,8 @@ type ApproximateLocationContext = {
   timezone: string;
 };
 
+type ReasoningMode = 'normal' | 'fast';
+
 type MessageContentPart =
   | {
       id: string;
@@ -49,6 +51,7 @@ const STORAGE_KEYS = {
   approximateLocation: 'otterai.approximateLocation',
   chatHistory: 'otterai.chatHistory',
   draft: 'otterai.draft',
+  reasoningMode: 'otterai.reasoningMode',
   sidebarCollapsed: 'otterai.sidebarCollapsed',
   threads: 'otterai.threads',
 } as const;
@@ -76,6 +79,12 @@ function readStoredBoolean(key: string, fallback: boolean) {
   if (value === 'true') return true;
   if (value === 'false') return false;
   return fallback;
+}
+
+function readStoredReasoningMode() {
+  return readStoredString(STORAGE_KEYS.reasoningMode) === 'fast'
+    ? 'fast'
+    : 'normal';
 }
 
 function writeStoredValue(key: string, value: string) {
@@ -206,9 +215,11 @@ function renderInlineMarkdown(text: string) {
 async function requestChatReply({
   messages,
   approximateLocationContext,
+  reasoningMode,
 }: {
   messages: Array<Pick<Message, 'role' | 'content'>>;
   approximateLocationContext: ApproximateLocationContext | null;
+  reasoningMode: ReasoningMode;
 }) {
   const response = await fetch('/api/chat', {
     method: 'POST',
@@ -221,6 +232,7 @@ async function requestChatReply({
         ...messages,
       ],
       approximateLocationContext,
+      reasoningMode,
     }),
   });
 
@@ -270,6 +282,9 @@ function App() {
   const [chatHistory, setChatHistory] = useState(() =>
     readStoredBoolean(STORAGE_KEYS.chatHistory, true),
   );
+  const [reasoningMode, setReasoningMode] = useState<ReasoningMode>(
+    readStoredReasoningMode,
+  );
   const [threads, setThreads] = useState<Thread[]>(readStoredThreads);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(() => {
     const storedThreadId = readStoredString(STORAGE_KEYS.activeThreadId);
@@ -314,6 +329,10 @@ function App() {
   useEffect(() => {
     writeStoredValue(STORAGE_KEYS.chatHistory, String(chatHistory));
   }, [chatHistory]);
+
+  useEffect(() => {
+    writeStoredValue(STORAGE_KEYS.reasoningMode, reasoningMode);
+  }, [reasoningMode]);
 
   useEffect(() => {
     if (chatHistory) {
@@ -461,6 +480,7 @@ function App() {
           approximateLocationContext: approximateLocation
             ? getApproximateLocationContext()
             : null,
+          reasoningMode,
         });
 
         const assistantMessage: Message = {
@@ -491,7 +511,7 @@ function App() {
         setIsSending(false);
       }
     },
-    [activeThread?.messages, activeThreadId, approximateLocation, isSending],
+    [activeThread?.messages, activeThreadId, approximateLocation, isSending, reasoningMode],
   );
 
   useEffect(() => {
@@ -555,7 +575,9 @@ function App() {
         hydrated={hydrated}
         isSending={isSending}
         chatError={chatError}
+        reasoningMode={reasoningMode}
         onDraftChange={setDraft}
+        onReasoningModeChange={setReasoningMode}
         onSend={sendMessage}
         listRef={listRef}
         onOpenPrivatePopup={() => setPrivatePopupOpen(true)}
@@ -805,7 +827,7 @@ function Sidebar({
           </Tooltip>
           <div className="sidebar-rail__spacer" />
           <Tooltip text="Settings">
-            <button className="sidebar-rail__button sidebar-rail__button--bottom" type="button" aria-label="Settings" title="Settings">
+            <button className="sidebar-rail__button sidebar-rail__button--bottom" type="button" aria-label="Settings" title="Settings" onClick={onOpenSettingsPopup}>
               <Settings size={22} />
             </button>
           </Tooltip>
@@ -935,7 +957,9 @@ type ChatAreaProps = {
   hydrated: boolean;
   isSending: boolean;
   chatError: string | null;
+  reasoningMode: ReasoningMode;
   onDraftChange: (value: string) => void;
+  onReasoningModeChange: (value: ReasoningMode) => void;
   onSend: (value: string) => void | Promise<void>;
   listRef: React.RefObject<HTMLDivElement | null>;
   onOpenPrivatePopup: () => void;
@@ -947,7 +971,9 @@ function ChatArea({
   hydrated,
   isSending,
   chatError,
+  reasoningMode,
   onDraftChange,
+  onReasoningModeChange,
   onSend,
   listRef,
   onOpenPrivatePopup,
@@ -993,7 +1019,9 @@ function ChatArea({
                 <Composer
                   value={draft}
                   disabled={isSending}
+                  reasoningMode={reasoningMode}
                   onChange={onDraftChange}
+                  onReasoningModeChange={onReasoningModeChange}
                   onSend={onSend}
                 />
               </ComposerShell>
@@ -1009,7 +1037,9 @@ function ChatArea({
               <Composer
                 value={draft}
                 disabled={isSending}
+                reasoningMode={reasoningMode}
                 onChange={onDraftChange}
+                onReasoningModeChange={onReasoningModeChange}
                 onSend={onSend}
               />
             </ComposerShell>
@@ -1247,15 +1277,20 @@ function ComposerShell({ children }: { children: React.ReactNode }) {
 function Composer({
   value,
   disabled,
+  reasoningMode,
   onChange,
+  onReasoningModeChange,
   onSend,
 }: {
   value: string;
   disabled: boolean;
+  reasoningMode: ReasoningMode;
   onChange: (value: string) => void;
+  onReasoningModeChange: (value: ReasoningMode) => void;
   onSend: (value: string) => void | Promise<void>;
 }) {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [reasoningOpen, setReasoningOpen] = useState(false);
 
   useEffect(() => {
     if (!inputRef.current) return;
@@ -1283,16 +1318,65 @@ function Composer({
       
 
       <div className="composer__footer">
-        <div className="composer__hint">Press Enter to send</div>
-        <button
-          className="send-button"
-          type="button"
-          onClick={() => onSend(value)}
-          title="Send message"
-          disabled={disabled || !value.trim()}
-        >
-          <ArrowUp />
-        </button>
+        {/* <div className="composer__hint">Press Enter to send</div>*/}
+        <div className="composer__actions">
+          <div className="reasoning-picker">
+            <button
+              className="reasoning-picker__button"
+              type="button"
+              onClick={() => setReasoningOpen((value) => !value)}
+              aria-haspopup="menu"
+              aria-expanded={reasoningOpen}
+            >
+              {reasoningMode === 'fast' ? <Zap size={16} /> : <Gauge size={16} />}
+              <span>{reasoningMode === 'fast' ? 'Fast' : 'Reasoning'}</span>
+              <ChevronDown size={14} />
+            </button>
+
+            {reasoningOpen && (
+              <div className="reasoning-picker__menu" role="menu">
+                <button
+                  className={`reasoning-picker__option ${reasoningMode === 'normal' ? 'is-active' : ''}`}
+                  type="button"
+                  onClick={() => {
+                    onReasoningModeChange('normal');
+                    setReasoningOpen(false);
+                  }}
+                >
+                  <span className="reasoning-picker__option-icon"><Gauge size={16} /></span>
+                  <span className="reasoning-picker__option-copy">
+                    <strong>Reasoning</strong>
+                    <small>Takes a moment to respond</small>
+                  </span>
+                </button>
+
+                <button
+                  className={`reasoning-picker__option ${reasoningMode === 'fast' ? 'is-active' : ''}`}
+                  type="button"
+                  onClick={() => {
+                    onReasoningModeChange('fast');
+                    setReasoningOpen(false);
+                  }}
+                >
+                  <span className="reasoning-picker__option-icon"><Zap size={16} /></span>
+                  <span className="reasoning-picker__option-copy">
+                    <strong>Fast</strong>
+                    <small>Answers right away</small>
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
+          <button
+            className="send-button"
+            type="button"
+            onClick={() => onSend(value)}
+            title="Send message"
+            disabled={disabled || !value.trim()}
+          >
+            <ArrowUp />
+          </button>
+        </div>
       </div>
     </div>
     

@@ -75,6 +75,7 @@ export async function handleChatRequest(request, response) {
     typeof body.approximateLocationContext === 'object'
       ? body.approximateLocationContext
       : null;
+  const reasoningMode = body?.reasoningMode === 'fast' ? 'fast' : 'normal';
 
   const validMessages = messages
     .filter(
@@ -93,6 +94,14 @@ export async function handleChatRequest(request, response) {
       error: { message: 'At least one user message is required.' },
     });
     return;
+  }
+
+  if (reasoningMode === 'fast') {
+    validMessages.unshift({
+      role: 'system',
+      content:
+        'Reasoning level: fast. Prioritize a quick, concise answer. Avoid extended deliberation unless the user explicitly asks for detail.',
+    });
   }
 
   if (
@@ -123,7 +132,8 @@ export async function handleChatRequest(request, response) {
       body: JSON.stringify({
         model: process.env.OPENROUTER_MODEL?.trim() || DEFAULT_MODEL,
         messages: validMessages,
-        temperature: 0.7,
+        temperature: reasoningMode === 'fast' ? 0.4 : 0.7,
+        max_tokens: reasoningMode === 'fast' ? 700 : 1800,
       }),
     });
 

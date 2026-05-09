@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
+import Privacy from './privacy.tsx';
 import { PanelLeft, Shield, X, NotebookPen, ArrowUp, Settings, MessageSquarePlus, ChevronDown, ShieldCheck, PenLine, Flame, Zap, Gauge } from 'lucide-react';
 
 type Message = {
@@ -266,6 +267,7 @@ function Tooltip({
 }
 
 function App() {
+  const [showPrivacyPage, setShowPrivacyPage] = useState(() => window.location.hash === '#privacy');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
     readStoredBoolean(STORAGE_KEYS.sidebarCollapsed, false),
   );
@@ -298,6 +300,17 @@ function App() {
   useEffect(() => {
     const id = requestAnimationFrame(() => setHydrated(true));
     return () => cancelAnimationFrame(id);
+  }, []);
+
+  useEffect(() => {
+    function syncPrivacyPage() {
+      setShowPrivacyPage(window.location.hash === '#privacy');
+    }
+
+    window.addEventListener('hashchange', syncPrivacyPage);
+    syncPrivacyPage();
+
+    return () => window.removeEventListener('hashchange', syncPrivacyPage);
   }, []);
 
   const activeThread = useMemo(
@@ -380,6 +393,20 @@ function App() {
       setFireVisible(true);
       window.setTimeout(() => setFireVisible(false), 1200);
     });
+  }, []);
+
+  const openPrivacyPage = useCallback(() => {
+    if (window.location.hash !== '#privacy') {
+      window.location.hash = 'privacy';
+    }
+  }, []);
+
+  const closePrivacyPage = useCallback(() => {
+    if (window.location.hash === '#privacy') {
+      window.history.back();
+    } else {
+      setShowPrivacyPage(false);
+    }
   }, []);
 
   const clearAllChats = useCallback(() => {
@@ -554,6 +581,10 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [privatePopupOpen, sendMessage, newChat]);
 
+  if (showPrivacyPage) {
+    return <Privacy onBack={closePrivacyPage} />;
+  }
+
   return (
     <div className={`app ${appearanceTheme === 'dark' ? 'theme-dark' : 'theme-light'}`}>
       <Sidebar
@@ -567,6 +598,7 @@ function App() {
         onToggleCollapse={() => setSidebarCollapsed((value) => !value)}
         onOpenPrivatePopup={() => setPrivatePopupOpen(true)}
         onOpenSettingsPopup={() => setSettingsPopupOpen(true)}
+        onOpenPrivacyPage={openPrivacyPage}
       />
 
       <ChatArea
@@ -725,6 +757,16 @@ function App() {
               </div>
             </div>
 
+            <div className="settings-dock__row settings-dock__footer-row">
+              <div className="settings-dock__label">Privacy Policy</div>
+              <button type="button" className="settings-dock__vote settings-dock__vote--link" onClick={() => {
+                setSettingsPopupOpen(false);
+                openPrivacyPage();
+              }}>
+                Open
+              </button>
+            </div>
+
             {/* 
 <div className="settings-dock__links">
   <button type="button" className="settings-dock__link-button">
@@ -753,6 +795,7 @@ type SidebarProps = {
   onToggleCollapse: () => void;
   onOpenPrivatePopup: () => void;
   onOpenSettingsPopup: () => void;
+  onOpenPrivacyPage: () => void;
 };
 
 function Sidebar({
@@ -766,6 +809,7 @@ function Sidebar({
   onToggleCollapse,
   onOpenPrivatePopup,
   onOpenSettingsPopup,
+  onOpenPrivacyPage,
 }: SidebarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -911,9 +955,13 @@ function Sidebar({
                   <Settings size={18} />
                   <span>Settings</span>
                 </button>
-                <button className="sidebar__menu-item" type="button" onClick={onOpenPrivatePopup}>
+              <button className="sidebar__menu-item" type="button" onClick={onOpenPrivatePopup}>
                   <ShieldCheck size={18} />
                   <span>Chat Protection</span>
+                </button>
+                <button className="sidebar__menu-item" type="button" onClick={onOpenPrivacyPage}>
+                  <Shield size={18} />
+                  <span>Privacy Policy</span>
                 </button>
                 {/* 
                 <button className="sidebar__menu-item" type="button">

@@ -28,6 +28,19 @@ type ApproximateLocationContext = {
   timezone: string;
 };
 
+type MessageContentPart =
+  | {
+      id: string;
+      type: 'text';
+      content: string;
+    }
+  | {
+      id: string;
+      type: 'code';
+      content: string;
+      language: string;
+    };
+
 const SYSTEM_PROMPT =
   'You are Otter AI, a concise, helpful assistant. Answer clearly and keep the conversation natural.';
 const STORAGE_KEYS = {
@@ -120,6 +133,74 @@ function getApproximateLocationContext() {
     language: navigator.language,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   };
+}
+
+function parseMessageContent(content: string): MessageContentPart[] {
+  const parts: MessageContentPart[] = [];
+  const codeBlockPattern = /```([^\n`]*)\n?([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = codeBlockPattern.exec(content)) !== null) {
+    const textContent = content.slice(lastIndex, match.index);
+    if (textContent) {
+      parts.push({
+        id: `text-${parts.length}-${match.index}`,
+        type: 'text',
+        content: textContent,
+      });
+    }
+
+    parts.push({
+      id: `code-${parts.length}-${match.index}`,
+      type: 'code',
+      language: match[1].trim(),
+      content: match[2].replace(/\n$/, ''),
+    });
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  const remainingContent = content.slice(lastIndex);
+  if (remainingContent) {
+    parts.push({
+      id: `text-${parts.length}-${lastIndex}`,
+      type: 'text',
+      content: remainingContent,
+    });
+  }
+
+  return parts.length ? parts : [{ id: 'text-0', type: 'text', content }];
+}
+
+function renderInlineMarkdown(text: string) {
+  const segments: React.ReactNode[] = [];
+  const inlinePattern = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = inlinePattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push(text.slice(lastIndex, match.index));
+    }
+
+    const token = match[0];
+    if (token.startsWith('**')) {
+      segments.push(
+        <strong key={`${match.index}-strong`}>{token.slice(2, -2)}</strong>,
+      );
+    } else {
+      segments.push(<em key={`${match.index}-em`}>{token.slice(1, -1)}</em>);
+    }
+
+    lastIndex = match.index + token.length;
+  }
+
+  if (lastIndex < text.length) {
+    segments.push(text.slice(lastIndex));
+  }
+
+  return segments.length ? segments : text;
 }
 
 async function requestChatReply({
@@ -908,12 +989,14 @@ function ChatArea({
           ) : (
             <EmptyState hydrated={hydrated} onOpenPrivatePopup={onOpenPrivatePopup}>
               {chatError ? <div className="chat-error">{chatError}</div> : null}
-              <Composer
-                value={draft}
-                disabled={isSending}
-                onChange={onDraftChange}
-                onSend={onSend}
-              />
+              <ComposerShell>
+                <Composer
+                  value={draft}
+                  disabled={isSending}
+                  onChange={onDraftChange}
+                  onSend={onSend}
+                />
+              </ComposerShell>
             </EmptyState>
           )}
           {isSending ? <TypingIndicator /> : null}
@@ -922,12 +1005,14 @@ function ChatArea({
         {thread?.messages.length ? (
           <div className="composer-shell">
             {chatError ? <div className="chat-error">{chatError}</div> : null}
-            <Composer
-              value={draft}
-              disabled={isSending}
-              onChange={onDraftChange}
-              onSend={onSend}
-            />
+            <ComposerShell>
+              <Composer
+                value={draft}
+                disabled={isSending}
+                onChange={onDraftChange}
+                onSend={onSend}
+              />
+            </ComposerShell>
           </div>
         ) : null}
       </section>
@@ -972,9 +1057,149 @@ function MessageList({ messages }: { messages: Message[] }) {
           <div className="message__label">
             {message.role === 'user' ? 'You' : 'Otter AI'}
           </div>
-          <div className="message__bubble">{message.content}</div>
+          <div className="message__bubble">
+            <MessageContent content={message.content} />
+          </div>
         </article>
       ))}
+    </div>
+  );
+}
+
+function MessageContent({ content }: { content: string }) {
+  const parts = useMemo(() => parseMessageContent(content), [content]);
+
+  return (
+    <div className="message-content">
+      {parts.map((part) =>
+        part.type === 'code' ? (
+          <CodeBlock
+            key={part.id}
+            code={part.content}
+            language={part.language}
+          />
+        ) : (
+          <FormattedText key={part.id} content={part.content} />
+        ),
+      )}
+    </div>
+  );
+}
+
+function FormattedText({ content }: { content: string }) {
+  const lines = content.split('\n');
+
+  return (
+    <div className="formatted-text">
+      {lines.map((line, index) => {
+        const trimmed = line.trim();
+        const headingMatch = /^(#{1,3})\s+(.+)$/.exec(trimmed);
+        const numberedMatch = /^(\d+)\.\s+(.+)$/.exec(trimmed);
+        const bulletMatch = /^[-*]\s+(.+)$/.exec(trimmed);
+
+        if (!trimmed) {
+          return <div key={index} className="formatted-text__break" />;
+        }
+
+        if (/^={3,}$/.test(trimmed) || /^-{3,}$/.test(trimmed)) {
+          return <hr key={index} className="formatted-text__rule" />;
+        }
+
+        if (headingMatch) {
+          const level = headingMatch[1].length;
+          if (level === 1) {
+            return (
+              <h3 key={index} className="formatted-text__heading">
+                {renderInlineMarkdown(headingMatch[2])}
+              </h3>
+            );
+          }
+
+          if (level === 2) {
+            return (
+              <h4 key={index} className="formatted-text__heading">
+                {renderInlineMarkdown(headingMatch[2])}
+              </h4>
+            );
+          }
+
+          return (
+            <h5 key={index} className="formatted-text__heading">
+              {renderInlineMarkdown(headingMatch[2])}
+            </h5>
+          );
+        }
+
+        if (index + 1 < lines.length && /^={3,}$/.test(lines[index + 1].trim())) {
+          return (
+            <h3 key={index} className="formatted-text__heading">
+              {renderInlineMarkdown(trimmed)}
+            </h3>
+          );
+        }
+
+        if (numberedMatch) {
+          return (
+            <p key={index} className="formatted-text__list-line">
+              <span>{numberedMatch[1]}.</span>
+              <span>{renderInlineMarkdown(numberedMatch[2])}</span>
+            </p>
+          );
+        }
+
+        if (bulletMatch) {
+          return (
+            <p key={index} className="formatted-text__list-line">
+              <span>•</span>
+              <span>{renderInlineMarkdown(bulletMatch[1])}</span>
+            </p>
+          );
+        }
+
+        return (
+          <p key={index} className="formatted-text__paragraph">
+            {renderInlineMarkdown(line)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+function CodeBlock({
+  code,
+  language,
+}: {
+  code: string;
+  language: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  async function copyCode() {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <div className="code-block">
+      <div className="code-block__toolbar">
+        <span className="code-block__language">{language || 'code'}</span>
+        <button
+          className="code-block__copy"
+          type="button"
+          onClick={copyCode}
+        >
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <pre className="code-block__pre">
+        <code>{code}</code>
+      </pre>
     </div>
   );
 }
@@ -1004,6 +1229,17 @@ function ClearFireAnimation() {
         <div className="clear-fire__line clear-fire__line--three" />
         <div className="clear-fire__glow" />
       </div>
+    </div>
+  );
+}
+
+function ComposerShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="composer-stack">
+      {children}
+      <p className="composer__disclaimer">
+        Otter AI can make mistakes. Consider checking important information.
+      </p>
     </div>
   );
 }
@@ -1044,6 +1280,7 @@ function Composer({
         }}
         rows={2}
       />
+      
 
       <div className="composer__footer">
         <div className="composer__hint">Press Enter to send</div>
@@ -1058,7 +1295,9 @@ function Composer({
         </button>
       </div>
     </div>
+    
   );
+  
 }
 
 function SkeletonLoader({ visible }: { visible: boolean }) {

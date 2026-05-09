@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
-import { PanelLeft, Shield, X, NotebookPen, ArrowUp, Settings, MessageSquarePlus, ChevronDown, ShieldCheck, MessageCircleMore, PenLine } from 'lucide-react';
+import { PanelLeft, Shield, X, NotebookPen, ArrowUp, Settings, MessageSquarePlus, ChevronDown, ShieldCheck, PenLine, Flame } from 'lucide-react';
 
 type Message = {
   id: string;
-  role: 'user';
+  role: 'user' | 'assistant';
   content: string;
   createdAt: number;
 };
@@ -16,6 +16,30 @@ type Thread = {
   createdAt: number;
 };
 
+type ChatApiResponse = {
+  reply?: string;
+  error?: {
+    message?: string;
+  };
+};
+
+type ApproximateLocationContext = {
+  language: string;
+  timezone: string;
+};
+
+const SYSTEM_PROMPT =
+  'You are Otter AI, a concise, helpful assistant. Answer clearly and keep the conversation natural.';
+const STORAGE_KEYS = {
+  activeThreadId: 'otterai.activeThreadId',
+  appearanceTheme: 'otterai.appearanceTheme',
+  approximateLocation: 'otterai.approximateLocation',
+  chatHistory: 'otterai.chatHistory',
+  draft: 'otterai.draft',
+  sidebarCollapsed: 'otterai.sidebarCollapsed',
+  threads: 'otterai.threads',
+} as const;
+
 function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -24,6 +48,114 @@ function buildThreadTitle(content: string) {
   const compact = content.replace(/\s+/g, ' ').trim();
   if (compact.length <= 28) return compact;
   return `${compact.slice(0, 27).trimEnd()}…`;
+}
+
+function readStoredString(key: string, fallback = '') {
+  try {
+    return window.localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function readStoredBoolean(key: string, fallback: boolean) {
+  const value = readStoredString(key);
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return fallback;
+}
+
+function writeStoredValue(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Storage can be unavailable in private browsing or restricted contexts.
+  }
+}
+
+function removeStoredValue(key: string) {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Storage can be unavailable in private browsing or restricted contexts.
+  }
+}
+
+function readStoredThreads() {
+  try {
+    const value = window.localStorage.getItem(STORAGE_KEYS.threads);
+    if (!value) return [];
+
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter((thread): thread is Thread => {
+      if (!thread || typeof thread !== 'object') return false;
+      const candidate = thread as Partial<Thread>;
+      return (
+        typeof candidate.id === 'string' &&
+        typeof candidate.title === 'string' &&
+        typeof candidate.createdAt === 'number' &&
+        Array.isArray(candidate.messages) &&
+        candidate.messages.every((message) => {
+          if (!message || typeof message !== 'object') return false;
+          const candidateMessage = message as Partial<Message>;
+          return (
+            typeof candidateMessage.id === 'string' &&
+            (candidateMessage.role === 'user' ||
+              candidateMessage.role === 'assistant') &&
+            typeof candidateMessage.content === 'string' &&
+            typeof candidateMessage.createdAt === 'number'
+          );
+        })
+      );
+    });
+  } catch {
+    return [];
+  }
+}
+
+function getApproximateLocationContext() {
+  return {
+    language: navigator.language,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  };
+}
+
+async function requestChatReply({
+  messages,
+  approximateLocationContext,
+}: {
+  messages: Array<Pick<Message, 'role' | 'content'>>;
+  approximateLocationContext: ApproximateLocationContext | null;
+}) {
+  const response = await fetch('/api/chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...messages,
+      ],
+      approximateLocationContext,
+    }),
+  });
+
+  const data = (await response.json().catch(() => ({}))) as ChatApiResponse;
+
+  if (!response.ok) {
+    throw new Error(
+      data.error?.message || `Chat request failed with status ${response.status}`,
+    );
+  }
+
+  if (!data.reply?.trim()) {
+    throw new Error('The chat API returned an empty response.');
+  }
+
+  return data.reply.trim();
 }
 
 function Tooltip({
@@ -41,16 +173,30 @@ function Tooltip({
 }
 
 function App() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
+    readStoredBoolean(STORAGE_KEYS.sidebarCollapsed, false),
+  );
   const [hydrated, setHydrated] = useState(false);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState(() => readStoredString(STORAGE_KEYS.draft));
   const [privatePopupOpen, setPrivatePopupOpen] = useState(false);
   const [settingsPopupOpen, setSettingsPopupOpen] = useState(false);
-  const [appearanceTheme, setAppearanceTheme] = useState<'light' | 'dark'>('light');
-  const [approximateLocation, setApproximateLocation] = useState(true);
-  const [chatHistory, setChatHistory] = useState(true);
-  const [threads, setThreads] = useState<Thread[]>([]);
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [appearanceTheme, setAppearanceTheme] = useState<'light' | 'dark'>(() =>
+    readStoredString(STORAGE_KEYS.appearanceTheme) === 'dark' ? 'dark' : 'light',
+  );
+  const [approximateLocation, setApproximateLocation] = useState(() =>
+    readStoredBoolean(STORAGE_KEYS.approximateLocation, true),
+  );
+  const [chatHistory, setChatHistory] = useState(() =>
+    readStoredBoolean(STORAGE_KEYS.chatHistory, true),
+  );
+  const [threads, setThreads] = useState<Thread[]>(readStoredThreads);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(() => {
+    const storedThreadId = readStoredString(STORAGE_KEYS.activeThreadId);
+    return storedThreadId || null;
+  });
+  const [isSending, setIsSending] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [fireVisible, setFireVisible] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -64,12 +210,208 @@ function App() {
   );
 
   useEffect(() => {
+    writeStoredValue(STORAGE_KEYS.sidebarCollapsed, String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    if (chatHistory) {
+      writeStoredValue(STORAGE_KEYS.draft, draft);
+      return;
+    }
+
+    removeStoredValue(STORAGE_KEYS.draft);
+  }, [chatHistory, draft]);
+
+  useEffect(() => {
+    writeStoredValue(STORAGE_KEYS.appearanceTheme, appearanceTheme);
+  }, [appearanceTheme]);
+
+  useEffect(() => {
+    writeStoredValue(STORAGE_KEYS.approximateLocation, String(approximateLocation));
+  }, [approximateLocation]);
+
+  useEffect(() => {
+    writeStoredValue(STORAGE_KEYS.chatHistory, String(chatHistory));
+  }, [chatHistory]);
+
+  useEffect(() => {
+    if (chatHistory) {
+      writeStoredValue(STORAGE_KEYS.threads, JSON.stringify(threads));
+      return;
+    }
+
+    removeStoredValue(STORAGE_KEYS.threads);
+  }, [chatHistory, threads]);
+
+  useEffect(() => {
+    if (chatHistory) {
+      writeStoredValue(STORAGE_KEYS.activeThreadId, activeThreadId ?? '');
+      return;
+    }
+
+    removeStoredValue(STORAGE_KEYS.activeThreadId);
+  }, [activeThreadId, chatHistory]);
+
+  useEffect(() => {
     if (!listRef.current) return;
     listRef.current.scrollTo({
       top: listRef.current.scrollHeight,
       behavior: 'smooth',
     });
-  }, [activeThread?.messages.length, activeThreadId]);
+  }, [activeThread?.messages.length, activeThreadId, isSending]);
+
+  const newChat = useCallback(() => {
+    const thread: Thread = {
+      id: createId(),
+      title: 'New chat',
+      messages: [],
+      createdAt: Date.now(),
+    };
+
+    setThreads((current) => [thread, ...current]);
+    setActiveThreadId(thread.id);
+    setDraft('');
+    setChatError(null);
+  }, []);
+
+  const showClearAnimation = useCallback(() => {
+    setFireVisible(false);
+    requestAnimationFrame(() => {
+      setFireVisible(true);
+      window.setTimeout(() => setFireVisible(false), 1200);
+    });
+  }, []);
+
+  const clearAllChats = useCallback(() => {
+    if (!threads.length) return;
+    setThreads([]);
+    setActiveThreadId(null);
+    setDraft('');
+    setChatError(null);
+    showClearAnimation();
+  }, [showClearAnimation, threads.length]);
+
+  const deleteChat = useCallback((threadId: string) => {
+    setThreads((current) => {
+      const nextThreads = current.filter((thread) => thread.id !== threadId);
+
+      if (activeThreadId === threadId) {
+        setActiveThreadId(nextThreads[0]?.id ?? null);
+        setDraft('');
+        setChatError(null);
+      }
+
+      return nextThreads;
+    });
+  }, [activeThreadId]);
+
+  const toggleChatHistory = useCallback(() => {
+    setChatHistory((value) => {
+      const nextValue = !value;
+
+      if (!nextValue) {
+        setThreads([]);
+        setActiveThreadId(null);
+        setDraft('');
+        setChatError(null);
+        removeStoredValue(STORAGE_KEYS.threads);
+        removeStoredValue(STORAGE_KEYS.activeThreadId);
+        removeStoredValue(STORAGE_KEYS.draft);
+      }
+
+      return nextValue;
+    });
+  }, []);
+
+  const sendMessage = useCallback(
+    async (text: string) => {
+      const content = text.trim();
+      if (!content || isSending) return;
+
+      const userMessage: Message = {
+        id: createId(),
+        role: 'user',
+        content,
+        createdAt: Date.now(),
+      };
+
+      const threadId = activeThreadId ?? createId();
+      const previousMessages = activeThread?.messages ?? [];
+      const nextMessages = [...previousMessages, userMessage];
+
+      setChatError(null);
+      setIsSending(true);
+      setDraft('');
+      setActiveThreadId(threadId);
+      setThreads((current) => {
+        const existingThread = current.find((thread) => thread.id === threadId);
+        if (!existingThread) {
+          return [
+            {
+              id: threadId,
+              title: buildThreadTitle(content),
+              messages: [userMessage],
+              createdAt: userMessage.createdAt,
+            },
+            ...current,
+          ];
+        }
+
+        return current.map((thread) => {
+          if (thread.id !== threadId) return thread;
+          return {
+            ...thread,
+            title:
+              thread.messages.length === 0
+                ? buildThreadTitle(content)
+                : thread.title,
+            messages: [...thread.messages, userMessage],
+            createdAt: userMessage.createdAt,
+          };
+        });
+      });
+
+      try {
+        const reply = await requestChatReply({
+          messages: nextMessages.map((message) => ({
+            role: message.role,
+            content: message.content,
+          })),
+          approximateLocationContext: approximateLocation
+            ? getApproximateLocationContext()
+            : null,
+        });
+
+        const assistantMessage: Message = {
+          id: createId(),
+          role: 'assistant',
+          content: reply,
+          createdAt: Date.now(),
+        };
+
+        setThreads((current) =>
+          current.map((thread) =>
+            thread.id === threadId
+              ? {
+                  ...thread,
+                  messages: [...thread.messages, assistantMessage],
+                  createdAt: assistantMessage.createdAt,
+                }
+              : thread,
+          ),
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'OpenRouter could not complete the request.';
+        setChatError(message);
+      } finally {
+        setIsSending(false);
+      }
+    },
+    [activeThread?.messages, activeThreadId, approximateLocation, isSending],
+  );
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -111,65 +453,6 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [privatePopupOpen, sendMessage, newChat]);
 
-  function newChat() {
-    const thread: Thread = {
-      id: createId(),
-      title: 'New chat',
-      messages: [],
-      createdAt: Date.now(),
-    };
-
-    setThreads((current) => [thread, ...current]);
-    setActiveThreadId(thread.id);
-    setDraft('');
-  }
-
-  function sendMessage(text: string) {
-    const content = text.trim();
-    if (!content) return;
-
-    const message: Message = {
-      id: createId(),
-      role: 'user',
-      content,
-      createdAt: Date.now(),
-    };
-
-    let threadId: string = activeThreadId ?? '';
-
-    if (!threadId) {
-      threadId = createId();
-      setThreads((current) => [
-        {
-          id: threadId,
-          title: buildThreadTitle(content),
-          messages: [message],
-          createdAt: message.createdAt,
-        },
-        ...current,
-      ]);
-      setActiveThreadId(threadId);
-      setDraft('');
-      return;
-    }
-
-    setThreads((current) =>
-      current.map((thread) => {
-        if (thread.id !== threadId) return thread;
-        return {
-          ...thread,
-          title:
-            thread.messages.length === 0
-              ? buildThreadTitle(content)
-              : thread.title,
-          messages: [...thread.messages, message],
-          createdAt: message.createdAt,
-        };
-      }),
-    );
-    setDraft('');
-  }
-
   return (
     <div className={`app ${appearanceTheme === 'dark' ? 'theme-dark' : 'theme-light'}`}>
       <Sidebar
@@ -178,6 +461,8 @@ function App() {
         collapsed={sidebarCollapsed}
         onNewChat={newChat}
         onSelectThread={setActiveThreadId}
+        onDeleteThread={deleteChat}
+        onClearAllChats={clearAllChats}
         onToggleCollapse={() => setSidebarCollapsed((value) => !value)}
         onOpenPrivatePopup={() => setPrivatePopupOpen(true)}
         onOpenSettingsPopup={() => setSettingsPopupOpen(true)}
@@ -187,6 +472,8 @@ function App() {
         thread={activeThread}
         draft={draft}
         hydrated={hydrated}
+        isSending={isSending}
+        chatError={chatError}
         onDraftChange={setDraft}
         onSend={sendMessage}
         listRef={listRef}
@@ -194,6 +481,7 @@ function App() {
       />
 
       <SkeletonLoader visible={!hydrated} />
+      {fireVisible ? <ClearFireAnimation /> : null}
 
       {privatePopupOpen && (
         <div
@@ -288,7 +576,7 @@ function App() {
                   className={`settings-dock__switch ${chatHistory ? 'is-on' : ''}`}
                   type="button"
                   aria-pressed={chatHistory}
-                  onClick={() => setChatHistory((value) => !value)}
+                  onClick={toggleChatHistory}
                 >
                   <span className="settings-dock__knob" />
                 </button>
@@ -311,7 +599,7 @@ function App() {
                 </button>
               </div>
               <p className="settings-dock__copy">
-                Share a city-level location with AI models to improve relevancy. Otter AI never reveals your precise location to us or AI models. Learn more
+                Share browser language and timezone with AI models to improve time and locale-aware answers. Otter AI never sends your precise location, city, or address.
               </p>
             </div>
 
@@ -357,6 +645,8 @@ type SidebarProps = {
   collapsed: boolean;
   onNewChat: () => void;
   onSelectThread: (id: string) => void;
+  onDeleteThread: (id: string) => void;
+  onClearAllChats: () => void;
   onToggleCollapse: () => void;
   onOpenPrivatePopup: () => void;
   onOpenSettingsPopup: () => void;
@@ -368,6 +658,8 @@ function Sidebar({
   collapsed,
   onNewChat,
   onSelectThread,
+  onDeleteThread,
+  onClearAllChats,
   onToggleCollapse,
   onOpenPrivatePopup,
   onOpenSettingsPopup,
@@ -457,28 +749,55 @@ function Sidebar({
 
       {!collapsed && (
         <>
-          <div className="sidebar__section-label">Chats</div>
+          <div className="sidebar__section-head">
+            <div className="sidebar__section-label">Chats</div>
+            <Tooltip text="Clear all chats">
+              <button
+                className="chat-clear-button"
+                type="button"
+                onClick={onClearAllChats}
+                disabled={threads.length === 0}
+                aria-label="Clear all chats"
+                title="Clear all chats"
+              >
+                <Flame size={20} />
+              </button>
+            </Tooltip>
+          </div>
           <div className="chat-list">
             {threads.length === 0 ? null : threads.map((thread) => (
-              <button
+              <div
                 key={thread.id}
                 className={`chat-list__item ${thread.id === activeThreadId ? 'is-active' : ''}`}
-                onClick={() => onSelectThread(thread.id)}
-                title={thread.title}
-                type="button"
               >
-                <span className="chat-list__badge">
-                  {thread.title.slice(0, 1).toUpperCase()}
-                </span>
-                <span className="chat-list__meta">
-                  <span className="chat-list__title">{thread.title}</span>
-                  <span className="chat-list__subtle">
-                    {thread.messages.length
-                      ? `${thread.messages.length} message${thread.messages.length === 1 ? '' : 's'}`
-                      : 'Empty'}
+                <button
+                  className="chat-list__select"
+                  onClick={() => onSelectThread(thread.id)}
+                  title={thread.title}
+                  type="button"
+                >
+                  <span className="chat-list__badge">
+                    {thread.title.slice(0, 1).toUpperCase()}
                   </span>
-                </span>
-              </button>
+                  <span className="chat-list__meta">
+                    <span className="chat-list__title">{thread.title}</span>
+                    <span className="chat-list__subtle">
+                      {thread.messages.length
+                        ? `${thread.messages.length} message${thread.messages.length === 1 ? '' : 's'}`
+                        : 'Empty'}
+                    </span>
+                  </span>
+                </button>
+                <button
+                  className="chat-list__delete"
+                  type="button"
+                  onClick={() => onDeleteThread(thread.id)}
+                  aria-label={`Delete ${thread.title}`}
+                  title="Delete chat"
+                >
+                  <Flame size={20} />
+                </button>
+              </div>
             ))}
           </div>
 
@@ -533,8 +852,10 @@ type ChatAreaProps = {
   thread: Thread | null;
   draft: string;
   hydrated: boolean;
+  isSending: boolean;
+  chatError: string | null;
   onDraftChange: (value: string) => void;
-  onSend: (value: string) => void;
+  onSend: (value: string) => void | Promise<void>;
   listRef: React.RefObject<HTMLDivElement | null>;
   onOpenPrivatePopup: () => void;
 };
@@ -543,6 +864,8 @@ function ChatArea({
   thread,
   draft,
   hydrated,
+  isSending,
+  chatError,
   onDraftChange,
   onSend,
   listRef,
@@ -584,14 +907,27 @@ function ChatArea({
             <MessageList messages={thread.messages} />
           ) : (
             <EmptyState hydrated={hydrated} onOpenPrivatePopup={onOpenPrivatePopup}>
-              <Composer value={draft} onChange={onDraftChange} onSend={onSend} />
+              {chatError ? <div className="chat-error">{chatError}</div> : null}
+              <Composer
+                value={draft}
+                disabled={isSending}
+                onChange={onDraftChange}
+                onSend={onSend}
+              />
             </EmptyState>
           )}
+          {isSending ? <TypingIndicator /> : null}
         </div>
 
         {thread?.messages.length ? (
           <div className="composer-shell">
-            <Composer value={draft} onChange={onDraftChange} onSend={onSend} />
+            {chatError ? <div className="chat-error">{chatError}</div> : null}
+            <Composer
+              value={draft}
+              disabled={isSending}
+              onChange={onDraftChange}
+              onSend={onSend}
+            />
           </div>
         ) : null}
       </section>
@@ -629,8 +965,13 @@ function MessageList({ messages }: { messages: Message[] }) {
   return (
     <div className="message-list">
       {messages.map((message) => (
-        <article key={message.id} className="message message--user">
-          <div className="message__label">You</div>
+        <article
+          key={message.id}
+          className={`message message--${message.role}`}
+        >
+          <div className="message__label">
+            {message.role === 'user' ? 'You' : 'Otter AI'}
+          </div>
           <div className="message__bubble">{message.content}</div>
         </article>
       ))}
@@ -638,14 +979,45 @@ function MessageList({ messages }: { messages: Message[] }) {
   );
 }
 
+function TypingIndicator() {
+  return (
+    <div className="message-list message-list--typing">
+      <article className="message message--assistant">
+        <div className="message__label">Otter AI</div>
+        <div className="message__bubble message__bubble--typing">Thinking...</div>
+      </article>
+    </div>
+  );
+}
+
+function ClearFireAnimation() {
+  return (
+    <div className="clear-fire" aria-hidden="true">
+      <div className="clear-fire__panel">
+        <span className="clear-fire__ember clear-fire__ember--one" />
+        <span className="clear-fire__ember clear-fire__ember--two" />
+        <span className="clear-fire__ember clear-fire__ember--three" />
+        <span className="clear-fire__ember clear-fire__ember--four" />
+        <span className="clear-fire__ember clear-fire__ember--five" />
+        <div className="clear-fire__line clear-fire__line--one" />
+        <div className="clear-fire__line clear-fire__line--two" />
+        <div className="clear-fire__line clear-fire__line--three" />
+        <div className="clear-fire__glow" />
+      </div>
+    </div>
+  );
+}
+
 function Composer({
   value,
+  disabled,
   onChange,
   onSend,
 }: {
   value: string;
+  disabled: boolean;
   onChange: (value: string) => void;
-  onSend: (value: string) => void;
+  onSend: (value: string) => void | Promise<void>;
 }) {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -662,6 +1034,7 @@ function Composer({
         className="composer__input"
         value={value}
         placeholder="Ask anything privately..."
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.shiftKey) {
@@ -676,8 +1049,10 @@ function Composer({
         <div className="composer__hint">Press Enter to send</div>
         <button
           className="send-button"
+          type="button"
           onClick={() => onSend(value)}
           title="Send message"
+          disabled={disabled || !value.trim()}
         >
           <ArrowUp />
         </button>

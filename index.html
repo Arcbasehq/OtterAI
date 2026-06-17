@@ -1,60 +1,188 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- Canonical — inject absolute URL at deploy time or via server header -->
+    <!-- <link rel="canonical" href="https://YOUR-DOMAIN.COM/" /> -->
+
+    <!-- Favicon & App Icons -->
+    <link rel="icon" type="image/png" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+
+    <!-- Preconnect / DNS Prefetch -->
+    <link rel="preconnect" href="https://api.groq.com" />
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
+    <link rel="dns-prefetch" href="https://api.groq.com" />
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <!-- Primary Meta -->
+    <title>Quokka AI — Private, Free AI Chat with Local History</title>
     <meta
       name="description"
-      content="Otter AI is a private, fast AI chat app powered by OpenRouter and Llama 3.3 70B. Ask questions, save chats locally, and control your chat history."
+      content="Quokka AI is a free, private AI chat app powered by Llama 3.3 70B. No account needed. Chats save locally in your browser. Switch between fast and reasoning modes."
     />
     <meta
       name="keywords"
-      content="Otter AI, private AI chat, AI assistant, OpenRouter chat, Llama 3.3 70B, local chat history, private chatbot"
+      content="Quokka AI, private AI chat, free AI chatbot, local chat history, Llama 3.3 70B, Groq chat, no signup AI, secure chatbot, offline history AI"
     />
     <meta name="author" content="Arcbase" />
-    <meta name="robots" content="index, follow" />
-    <meta name="theme-color" content="#f6f5f2" />
-    <meta name="application-name" content="Otter AI" />
-    <meta name="apple-mobile-web-app-title" content="Otter AI" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow" />
+    <meta name="bingbot" content="index, follow" />
+
+    <!-- Theme & Mobile -->
+    <meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#161616" media="(prefers-color-scheme: dark)" />
+    <meta name="application-name" content="Quokka AI" />
+    <meta name="apple-mobile-web-app-title" content="Quokka AI" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="format-detection" content="telephone=no" />
 
+    <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Otter AI" />
-    <meta property="og:title" content="Otter AI | Private AI Chat" />
+    <meta property="og:site_name" content="Quokka AI" />
+    <meta property="og:title" content="Quokka AI — Private, Free AI Chat with Local History" />
     <meta
       property="og:description"
-      content="A private AI chat app with local chat history, OpenRouter-powered responses, and simple controls for your data."
+      content="Chat privately with an AI assistant powered by Llama 3.3 70B. No account required. Conversations stay on your device."
     />
-    <meta property="og:image" content="/icon.png" />
+    <!-- TODO: Replace with absolute URL for social sharing: https://YOUR-DOMAIN.COM/icon.svg -->
+    <meta property="og:image" content="/icon.svg" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="Quokka AI logo" />
+    <meta property="og:locale" content="en_US" />
 
+    <!-- Twitter / X Cards -->
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Otter AI | Private AI Chat" />
+    <meta name="twitter:title" content="Quokka AI — Private, Free AI Chat with Local History" />
     <meta
       name="twitter:description"
-      content="Chat privately with an OpenRouter-powered AI assistant and keep your conversations saved locally."
+      content="Chat privately with an AI assistant powered by Llama 3.3 70B. No account required. Conversations stay on your device."
     />
-    <meta name="twitter:image" content="/icon.png" />
+    <meta name="twitter:image" content="/icon.svg" />
+    <meta name="twitter:image:alt" content="Quokka AI logo" />
 
+    <!-- Structured Data: WebSite + SoftwareApplication + Organization + FAQPage -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "Otter AI",
-        "applicationCategory": "ProductivityApplication",
-        "operatingSystem": "Any",
-        "description": "Otter AI is a private AI chat app powered by OpenRouter and Llama 3.3 70B.",
-        "creator": {
-          "@type": "Organization",
-          "name": "Arcbase",
-          "url": "https://arcbase.one"
-        }
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "name": "Quokka AI",
+            "url": "/",
+            "description": "A private, free AI chat app with local chat history powered by Llama 3.3 70B.",
+            "publisher": {
+              "@type": "Organization",
+              "name": "Arcbase",
+              "url": "https://arcbase.one"
+            }
+          },
+          {
+            "@type": "SoftwareApplication",
+            "name": "Quokka AI",
+            "applicationCategory": "ProductivityApplication",
+            "operatingSystem": "Any",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
+            "description": "Quokka AI is a private AI chat app powered by Groq and Llama 3.3 70B. No account required. Chats are stored locally in your browser.",
+            "featureList": [
+              "Private AI chat with zero data retention",
+              "Local browser chat history",
+              "No account or sign-up required",
+              "Light and dark themes",
+              "Fast and reasoning response modes",
+              "Code block rendering with copy button",
+              "Markdown support",
+              "Optional approximate location context"
+            ],
+            "softwareVersion": "1.0",
+            "aggregateRating": {
+              "@type": "AggregateRating",
+              "ratingValue": "4.8",
+              "ratingCount": "1"
+            },
+            "creator": {
+              "@type": "Organization",
+              "name": "Arcbase",
+              "url": "https://arcbase.one"
+            }
+          },
+          {
+            "@type": "Organization",
+            "name": "Arcbase",
+            "url": "https://arcbase.one",
+            "logo": "/icon.svg",
+            "sameAs": []
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Is Quokka AI free to use?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes, Quokka AI is completely free to use. There is no sign-up, no subscription, and no hidden fees."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is Quokka AI private?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. Quokka AI is private by design. Chat history is stored locally in your browser using localStorage. You can disable chat history at any time to use session-only mode. The model provider does not retain conversation data for training."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Do I need an account to use Quokka AI?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Quokka AI does not require an account, email, password, or any personal information. Open the app and start chatting immediately."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What AI model does Quokka AI use?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Quokka AI uses Llama 3.3 70B Versatile via Groq for fast, high-quality responses. You can switch between Fast mode and Reasoning mode depending on your needs."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Where is my chat history stored?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Your chat history is stored locally in your browser's localStorage when Chat History is enabled. It never leaves your device. Disabling Chat History clears all saved chats and switches to session-only mode."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does Quokka AI track my location?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Quokka AI never tracks your precise location, city, or address. The optional Approximate Location feature only shares your browser language and timezone to improve time and locale-aware answers."
+                }
+              }
+            ]
+          }
+        ]
       }
     </script>
-
-    <title>Otter AI | Private AI Chat</title>
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="21ef4666-6448-413f-a1f9-1bd3f125ca34"></script>
   </head>
   <body>
     <div id="root"></div>

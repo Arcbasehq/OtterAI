@@ -1,8 +1,8 @@
-# Otter AI
+# Quokka AI
 
-Otter AI is a clean, privacy-minded AI chat website by Arcbase. It is designed for quick conversations, saved local chat history, and a calm interface that keeps the focus on the conversation.
+Quokka AI is a clean, privacy-minded AI chat website by Arcbase. It is designed for quick conversations, saved local chat history, and a calm interface that keeps the focus on the conversation.
 
-The site uses OpenRouter through a server-side API route, so the model provider key is never exposed in the browser. The default model is Llama 3.3 70B Instruct.
+The site uses Groq through a server-side API route, so the model provider key is never exposed in the browser. The default model is Llama 3.3 70B Versatile.
 
 ## What It Does
 
@@ -14,47 +14,45 @@ The site uses OpenRouter through a server-side API route, so the model provider 
 - Code block rendering with a working copy button
 - Basic markdown rendering for AI responses
 - Optional language/timezone context for better date, time, and locale-aware answers
-- Datadog RUM support for production monitoring
+- Umami Analytics for privacy-friendly usage monitoring
 
 ## Privacy
 
-Otter AI keeps chat history in the browser with `localStorage` when Chat History is enabled. Turning Chat History off clears saved chats, draft text, and the selected chat reference from local storage.
+Quokka AI keeps chat history in the browser with `localStorage` when Chat History is enabled. Turning Chat History off clears saved chats, draft text, and the selected chat reference from local storage.
 
 Approximate Location does not send precise location, city, or address. When enabled, it sends browser language and timezone only. The model is instructed not to infer a location from that context.
 
-OpenRouter requests are handled through the server-side `/api/chat` route. The OpenRouter API key is stored as a server environment variable and is not shipped to the client.
+Groq requests are handled through the server-side `/api/chat` route. The Groq API key is stored as a server environment variable and is not shipped to the client.
 
 ## AI Disclaimer
 
-Otter AI can make mistakes. Consider checking important information.
+Quokka AI can make mistakes. Consider checking important information.
 
 ## Production Services
 
-- AI routing: OpenRouter
-- Default model: `meta-llama/llama-3.3-70b-instruct`
+- AI routing: Groq
+- Default model: `llama-3.3-70b-versatile`
 - Hosting target: Vercel
-- Monitoring: Datadog RUM
+- Monitoring: Umami Analytics
 
 ## Required Runtime Configuration
 
-Production requires an OpenRouter API key:
+Production requires a Groq API key:
 
 ```env
-OPENROUTER_API_KEY=...
+GROQ_API_KEY=...
 ```
 
 Optional production settings:
 
 ```env
-OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct
-VITE_DATADOG_APPLICATION_ID=...
-VITE_DATADOG_CLIENT_TOKEN=...
-VITE_DATADOG_SITE=us5.datadoghq.com
-VITE_DATADOG_SERVICE=otterai
-VITE_DATADOG_ENV=production
+GROQ_MODEL=llama-3.3-70b-versatile
+UPSTASH_REDIS_REST_URL=...        # Upstash Redis REST URL for rate limiting
+UPSTASH_REDIS_REST_TOKEN=...      # Upstash Redis REST token
 ```
 
-Datadog initializes only when both `VITE_DATADOG_APPLICATION_ID` and `VITE_DATADOG_CLIENT_TOKEN` are present.
+Umami Analytics is loaded via a script tag in `index.html`.
+Redis rate limiting is optional — the app works without it.
 
 ## License
 

@@ -1,0 +1,40 @@
+# Quokka AI
+
+> A clean, privacy-first AI chat interface powered by Groq and Llama 3.3 70B.
+
+## Overview
+
+Quokka AI is a free, private AI chat web app built by Arcbase. Conversations are stored locally in your browser. No account required.
+
+- **URL**: https://ai.libreapps.xyz
+- **Type**: Web Application
+- **Category**: Productivity / AI Assistant
+- **Price**: Free
+
+## Key Features
+
+- Private AI chat with local browser storage
+- No account or sign-up required
+- Light and dark themes
+- Saved chat history (can be disabled for session-only mode)
+- Code block rendering with copy button
+- Markdown support in AI responses
+- Optional approximate location context (language + timezone only)
+- Fast and reasoning response modes
+- Keyboard shortcuts for power users
+
+## Technology
+
+- **Frontend**: React + Vite + TypeScript
+- **AI Model**: Llama 3.1 70B Versatile via Groq
+- **Hosting**: Vercel
+- **Privacy**: Zero data retention for chats; localStorage for history
+
+## Key Pages
+
+- [Homepage](https://ai.libreapps.xyz/) — Start chatting
+- [Privacy Policy](https://ai.libreapps.xyz/#privacy) — Privacy and data practices
+
+## Contact
+
+- **Creator**: Libre (https://libreapps.xyz)

@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Security updates are provided for the latest released version of Otter AI.
+Security updates are provided for the latest released version of Quokka AI.
 
 ## Reporting a Vulnerability
 
@@ -17,9 +17,9 @@ Please include:
 
 ## Secret Handling
 
-- Store OpenRouter credentials only in environment variables.
-- Use `OPENROUTER_API_KEY` on Vercel or in local `.env.local`.
-- Never expose OpenRouter keys through `VITE_` variables, client code, screenshots, logs, or commits.
+- Store Groq credentials only in environment variables.
+- Use `GROQ_API_KEY` on Vercel or in local `.env.local`.
+- Never expose Groq keys through `VITE_` variables, client code, screenshots, logs, or commits.
 - Rotate any key that may have been shared or committed.
 
 ## User Data
@@ -31,6 +31,6 @@ Approximate Location does not send precise location, city, or address. When enab
 ## Deployment Checklist
 
 - Confirm `.env.local` is not committed.
-- Set `OPENROUTER_API_KEY` in Vercel.
+- Set `GROQ_API_KEY` in Vercel.
 - Rotate any exposed API key before release.
 - Run `npm run build` and `npm run lint` before deploying.

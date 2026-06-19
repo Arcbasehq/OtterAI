@@ -1004,6 +1004,7 @@ function App() {
         onOpenPrivatePopup={() => setPrivatePopupOpen(true)}
         onOpenSettingsPopup={() => setSettingsPopupOpen(true)}
         onOpenPrivacyPage={openPrivacyPage}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
       />
 
       <ChatArea
@@ -1786,6 +1787,7 @@ type SidebarProps = {
   onOpenPrivatePopup: () => void;
   onOpenSettingsPopup: () => void;
   onOpenPrivacyPage: () => void;
+  onCloseMobile: () => void;
 };
 
 function Sidebar({
@@ -1804,6 +1806,7 @@ function Sidebar({
   onOpenPrivatePopup,
   onOpenSettingsPopup,
   onOpenPrivacyPage,
+  onCloseMobile,
 }: SidebarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -1837,7 +1840,7 @@ function Sidebar({
               <button
                 className="sidebar__close-button"
                 type="button"
-                onClick={onToggleCollapse}
+                onClick={isMobileOpen ? onCloseMobile : onToggleCollapse}
                 aria-label="Close sidebar"
                 title="Close sidebar"
               >
@@ -2172,8 +2175,8 @@ function EmptyState({
 }
 
 function SearchSources() {
-  const { searchResults, lastSearchQuery } = useSearchStore();
-  if (!searchResults.length || !lastSearchQuery) return null;
+  const { searchResults, lastSearchQuery, webSearchEnabled } = useSearchStore();
+  if (!webSearchEnabled || !searchResults.length || !lastSearchQuery) return null;
   return (
     <div className="search-sources">
       <div className="search-sources__header">
@@ -2561,6 +2564,7 @@ function Composer({
   const plusMenuRef = useRef<HTMLDivElement | null>(null);
   const [reasoningOpen, setReasoningOpen] = useState(false);
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
+  const webSearchOn = useSearchStore((state) => state.webSearchEnabled);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -2621,6 +2625,11 @@ function Composer({
         if (!disabled && value.trim()) onSend(value);
       }}
     >
+      {webSearchOn && (
+        <div className="composer__web-badge">
+          <Globe size={13} /> Web search enabled — your query will be searched
+        </div>
+      )}
       <textarea
         ref={inputRef}
         className="composer__input"

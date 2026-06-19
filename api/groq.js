@@ -6,10 +6,9 @@ export const GROQ_API_URL =
 const TURNSTILE_VERIFY_URL =
   'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL || '',
-  token: process.env.UPSTASH_REDIS_REST_TOKEN || '',
-});
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
+const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisToken }) : null;
 
 async function verifyTurnstile(token) {
   const secretKey = process.env.TURNSTILE_SECRET_KEY?.trim();
@@ -28,7 +27,7 @@ async function verifyTurnstile(token) {
 }
 
 async function checkRateLimit(ip) {
-  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) return true;
+  if (!redis) return true;
   const key = `ratelimit:${ip}`;
   const count = await redis.incr(key);
   if (count === 1) await redis.expire(key, 60);

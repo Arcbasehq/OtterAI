@@ -29,7 +29,10 @@ export const useSearchStore = create<SearchState & SearchActions>()(
       searchResults: [],
       isSearching: false,
       lastSearchQuery: '',
-      setWebSearchEnabled: (enabled) => set({ webSearchEnabled: enabled }),
+      setWebSearchEnabled: (enabled) => set({
+        webSearchEnabled: enabled,
+        ...(enabled ? {} : { searchResults: [], lastSearchQuery: '' }),
+      }),
       setSearchResults: (results) => set({ searchResults: results }),
       setIsSearching: (searching) => set({ isSearching: searching }),
       setLastSearchQuery: (query) => set({ lastSearchQuery: query }),
